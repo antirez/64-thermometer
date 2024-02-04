@@ -18,6 +18,10 @@ backlight.on()
 bg_color = display.color(0x00,0x00,0xff) # Inner screen
 fg_color = display.color(0x00,0x88,0xff) # Border + text
 
+# How much border to use, compared to screen size?
+def get_border_width():
+    return display.width//10 # 10% of width
+
 # Show the commodor 64 border/background colors on the screen.
 # If show_banner is true also writes some C64 startup text.
 # in the center-upper part.
@@ -27,7 +31,7 @@ fg_color = display.color(0x00,0x88,0xff) # Border + text
 def c64_screen(show_banner=False, type_text=False):
     banner = "** C64 BASIC **"
     display.fill(fg_color)
-    bw = display.width//10 # Border width
+    bw = get_border_width()
     display.rect(bw,bw,display.width-bw*2,display.height-bw*2,bg_color,True)
     y = bw+2 # Where to type the next text
     if show_banner:
@@ -58,9 +62,41 @@ def c64_type_text(x,y,text,hide_cursor=False):
         # Erase a bit more than 8x8 because of the artifact above.
         display.rect(x+8*len(text),y,9,8,bg_color,fill=True)
 
+# Show a big centered text. This is useful for temperature and
+# humidity screens.
+def big_centered_text(txt,color):
+    bw = get_border_width()
+    upscaling = 4
+    font_size = upscaling*8
+    center_x = int(bw + (display.width - bw*2 - font_size*len(txt))/2)
+    center_y = int(bw + (display.height - bw*2 - font_size)/2)
+    display.upscaled_text(center_x,center_y,txt,color,upscaling=upscaling)
+
+# Temperature view.
+def temperature_view(temp):
+    display.fill(display.color(0,0,0))
+    big_centered_text(str(temp)+"C",display.color(255,255,255))
+
+# Humidity view.
+def humidity_view(humidity):
+    display.fill(display.color(0,0,0))
+    big_centered_text(str(humidity)+"%",display.color(255,255,255))
+
 c64_screen(show_banner=True,type_text=["LOAD *,8,1","RUN"])
+view = 0 # Increments at every view change.
 while True:
     d = dht.DHT22(Pin(16))
     d.measure()
     print(d.temperature(), d.humidity())
-    time.sleep(1)
+
+    # Display current view
+    num_views = 2
+    if view % num_views == 0: temperature_view(d.temperature())
+    elif view % num_views == 1: humidity_view(d.humidity())
+    view += 1 # Next time we will display the next view
+
+    time.sleep(10) # Time between view switch.
+
+    # From time to time show again the loading screen.
+    if random.getrandbits(4) == 0:
+        c64_screen(show_banner=True,type_text=["LOAD *,8,1","RUN"])
