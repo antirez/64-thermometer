@@ -25,36 +25,52 @@ display = st7789_ext.ST7789(
     inversion = False,
 )
 
-# Colors (from the C64 color table at https://www.c64-wiki.com/wiki/Color)
-# r,g,b sampled from the screenshot provided.
-c64color = {
-    'black': display.color(0,0,0),
-    'white': display.color(255,255,255),
-    'red': display.color(157,69,60),
-    'cyan': display.color(110,199,207),
-    'violet': display.color(157,77,189),
-    'green': display.color(92,179,57),
-    'blue': display.color(75,57,176),
-    'yellow': display.color(211,223,109),
-    'orange': display.color(161,102,28),
-    'brown': display.color(107,81,0),
-    'light_red': display.color(204,125,117),
-    'grey1': display.color(96,96,96),
-    'grey2': display.color(138,138,138),
-    'light_green': display.color(162,238,133),
-    'light_blue': display.color(137,121,230),
-    'grey3': display.color(179,179,179),
-}
-
-bg_color = c64color['blue']         # Screen background
-fg_color = c64color['light_blue']   # Screen border
-graph_color1 = c64color['violet'] # Temp graph 1
-graph_color2 = c64color['orange'] # Temp graph 2
-
 # Hardware initialization.
 display.init(landscape=True,mirror_y=True)
 backlight = Pin(5,Pin.OUT)
 backlight.on()
+
+# Colors hand picked to be kinda credible in my cheap TFT display,
+# in the hope that the gamma is broken in similar ways.
+c64colors = {
+    'black': [0,0,0],
+    'white': [255,255,255],
+    'red': [125,0,0],
+    'cyan': [50,199,207],
+    'violet': [189,0,189],
+    'green': [0,125,0],
+    'blue': [3,3,80],
+    'yellow': [211,223,0],
+    'orange': [180,30,5],
+    'brown': [80,20,0],
+    'light_red': [200,30,30],
+    'grey1': [96,96,96],
+    'grey2': [138,138,138],
+    'light_green': [40,195,40],
+    'light_blue': [20,20,125],
+    'grey3': [179,179,179],
+}
+
+for k,v in c64colors.items():
+    c64colors[k] = display.color(v[0],v[1],v[2])
+
+bg_color = c64colors['blue']         # Screen background
+fg_color = c64colors['light_blue']         # Screen border
+graph_color1 = c64colors['violet'] # Temp graph 1
+graph_color2 = c64colors['orange'] # Temp graph 2
+
+def show_palette():
+    j = 0
+    for colorname in ['black','white','red','cyan','violet','green','blue','yellow','orange','brown','light_red','grey1','grey2','light_green','light_blue','grey3']:
+        xstep = display.width//4
+        ystep = display.height//4
+        display.rect(j%4*xstep,j//4*ystep,xstep,ystep,c64colors[colorname],fill=True)
+        j += 1
+
+# This is only useful to debug the palette in your display.
+if False:
+    show_palette()
+    time.sleep(3600)
 
 ################################# IMPLEMENTATION ###############################
 
@@ -131,22 +147,22 @@ def big_centered_text(x,y,width,height,txt,color,upscaling,*,x_align=ALIGN_MID,y
 # after how many data samples to change color, alternating between
 # two colors, so that different hours/minutes are marked in this way.
 def main_view(title,temp,humidity,ts,color):
-    display.fill(display.color(0,0,0))
+    display.fill(c64colors['black'])
     upscaling = 2
     big_centered_text(2,2,display.width-2,display.height-2,str(temp),
-            display.color(255,255,255),2,
+            c64colors['white'],2,
             x_align=ALIGN_LEFT,
             y_align=ALIGN_TOP)
     big_centered_text(2,2,display.width-2,display.height-2,str(humidity),
-            display.color(255,255,255),2,
+            c64colors['white'],2,
             x_align=ALIGN_RIGHT,
             y_align=ALIGN_TOP)
     big_centered_text(2,18,display.width-2,display.height-18,"temp",
-            display.color(50,50,50),1,
+            c64colors['grey2'],1,
             x_align=ALIGN_LEFT,
             y_align=ALIGN_TOP)
     big_centered_text(2,18,display.width-2,display.height-18,"igro",
-            display.color(50,50,50),1,
+            c64colors['grey2'],1,
             x_align=ALIGN_RIGHT,
             y_align=ALIGN_TOP)
     
@@ -168,12 +184,12 @@ def main_view(title,temp,humidity,ts,color):
             display.vline(ybase,ybase-int(thislen),i,color)
 
         # Draw the footer with min/max/info
-        big_centered_text(0,display.height-8,display.width,display.height,f"min:%.1f" % mintemp,display.color(0,0xcc,0x55),1,x_align=ALIGN_LEFT,y_align=ALIGN_TOP)
-        big_centered_text(0,display.height-8,display.width,display.height,f"max:%.1f" % maxtemp,display.color(0x88,0,0),1,x_align=ALIGN_RIGHT,y_align=ALIGN_TOP)
+        big_centered_text(0,display.height-8,display.width,display.height,f"min:%.1f" % mintemp,c64colors['cyan'],1,x_align=ALIGN_LEFT,y_align=ALIGN_TOP)
+        big_centered_text(0,display.height-8,display.width,display.height,f"max:%.1f" % maxtemp,c64colors['light_red'],1,x_align=ALIGN_RIGHT,y_align=ALIGN_TOP)
 
         # Draw the title of the graph
         big_centered_text(0,display.height//2,display.width,display.height//2,
-                          title,display.color(0xcc,0xcc,0xcc),1,
+                          title,c64colors['grey3'],1,
                           x_align=ALIGN_MID,y_align=ALIGN_MID)
 
 # Persist hourly/daily time series on the device flash.
