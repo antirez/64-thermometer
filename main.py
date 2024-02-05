@@ -235,7 +235,14 @@ def main():
     while True:
         loop_start = time.ticks_ms()
         d = dht.DHT22(Pin(16))
-        d.measure()
+
+        # Sometimes DHT11/22 sensors randomly timeout.
+        try:
+            d.measure()
+        except:
+            print("Sensor reading failed: check cables and pin configuration")
+            time.sleep(1)
+            continue
 
         # Print / store the data
         cur_hash = hash_sensor_data(d.temperature(),d.humidity())
