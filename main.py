@@ -25,6 +25,9 @@ display = st7789_ext.ST7789(
     inversion = False,
 )
 
+# The DHT22
+dht = dht.DHT22(Pin(16))
+
 # Hardware initialization.
 display.init(landscape=True,mirror_y=True)
 backlight = Pin(5,Pin.OUT)
@@ -234,27 +237,29 @@ def main():
 
     while True:
         loop_start = time.ticks_ms()
-        d = dht.DHT22(Pin(16))
 
         # Sometimes DHT11/22 sensors randomly timeout.
         try:
-            d.measure()
+            dht.measure()
         except:
             print("Sensor reading failed: check cables and pin configuration")
             time.sleep(1)
             continue
 
         # Print / store the data
-        cur_hash = hash_sensor_data(d.temperature(),d.humidity())
-        ts_h.append(d.temperature())
+        cur_hash = hash_sensor_data(dht.temperature(),dht.humidity())
+        ts_h.append(dht.temperature())
         ts_h = ts_h[-display.width:]
         if loop_count % spq == 0 and len(ts_h) >= spq:
             # Every 15 minutes we populate the last days time series.
             ts_d.append(sum(ts_h[-spq:])/spq)
             ts_d = ts_d[-display.width:]
-        print("readings",d.temperature(), d.humidity())
-        print("ts_h",ts_h)
-        print("ts_d",ts_d)
+        print("T, H, freemem:",dht.temperature(),dht.humidity(),gc.mem_free())
+
+        # Only useful for debugging of data collection.
+        if False:
+            print("ts_h",ts_h)
+            print("ts_d",ts_d)
 
         # From time to time show again the loading screen.
         if loop_count > 1 and random.getrandbits(5) == 0:
@@ -264,9 +269,9 @@ def main():
         # Display current view
         if cur_hash != data_hash:
             if daily_graph:
-                main_view("hourly",d.temperature(),d.humidity(),ts_h,graph_color1)
+                main_view("hourly",dht.temperature(),dht.humidity(),ts_h,graph_color1)
             else:
-                main_view("daily",d.temperature(),d.humidity(),ts_d,graph_color2)
+                main_view("daily",dht.temperature(),dht.humidity(),ts_d,graph_color2)
             data_hash = cur_hash
             daily_graph = not daily_graph
 
