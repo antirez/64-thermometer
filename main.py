@@ -2,6 +2,20 @@ import dht, machine, time, random
 from machine import Pin, SPI
 import st7789_base, st7789_ext, dht
 
+########################### GLOBAL STATE AND CONFIG ############################
+
+sampling_period = 10 # Read temperature/humidity every N seconds.
+                     # Better if multiple of 60.
+# We take temp readings of the last hour in high resolution, and
+# historical data of the last couple of days with hourly resolution.
+# In both cases, we only take the latest 'display.width' samples as
+# anyway this is max data we can should as one-pixel bars.
+ts_h = []  # Temperatures sampled every 'sampling_period'. Few hours.
+ts_d = []  # Temperatures sampled every 15 min. A couple of days.
+sph = 3600//sampling_period # Samples per hour at sampling_period.
+spq = sph//4 # Samples per 15 minutes.
+
+# Display and backlight
 display = st7789_ext.ST7789(
     SPI(1, baudrate=40000000, phase=0, polarity=0),
     160, 128,
@@ -11,12 +25,18 @@ display = st7789_ext.ST7789(
     inversion = False,
 )
 
+# Colors (from the C64 color table at https://www.c64-wiki.com/wiki/Color)
+bg_color = display.color(0x00,0x00,0xff) # Inner screen
+fg_color = display.color(0x00,0x88,0xff) # Border + text
+graph_color1 = display.color(0x88,0x44,0x22) # Temp graph 1
+graph_color2 = display.color(0x00,0x00,0xaa) # Temp graph 2
+
+# Hardware initialization.
 display.init(landscape=True,mirror_y=True)
 backlight = Pin(5,Pin.OUT)
 backlight.on()
 
-bg_color = display.color(0x00,0x00,0xff) # Inner screen
-fg_color = display.color(0x00,0x88,0xff) # Border + text
+################################# IMPLEMENTATION ###############################
 
 # How much border to use, compared to screen size?
 def get_border_width():
@@ -62,41 +82,122 @@ def c64_type_text(x,y,text,hide_cursor=False):
         # Erase a bit more than 8x8 because of the artifact above.
         display.rect(x+8*len(text),y,9,8,bg_color,fill=True)
 
-# Show a big centered text. This is useful for temperature and
-# humidity screens.
-def big_centered_text(txt,color):
-    bw = get_border_width()
-    upscaling = 4
-    font_size = upscaling*8
-    center_x = int(bw + (display.width - bw*2 - font_size*len(txt))/2)
-    center_y = int(bw + (display.height - bw*2 - font_size)/2)
-    display.upscaled_text(center_x,center_y,txt,color,upscaling=upscaling)
+# Show a big centered text. The text is centered in the sub-window
+# identified by the rectangle with left corner x,y of size width x height
+# pixels. x_align and y_align control how do we want the text to aligned
+# in the horizonal and vertical axis.
+ALIGN_MID = const(1)        # Both for x_align and y_align
+ALIGN_LEFT = const(0)
+ALIGN_RIGHT = const(2)
+ALIGN_TOP = const(3)
+ALIGN_BOTTOM = const(4)
+def big_centered_text(x,y,width,height,txt,color,upscaling,*,x_align=ALIGN_MID,y_align=ALIGN_MID):
+    char_size = upscaling*8
+    rx = 0 # left as default
+    ry = 0 # top as default
+    if x_align == ALIGN_MID:
+        rx = int((width - bw*2 - char_size*len(txt))/2)
+    elif x_align == ALIGN_RIGHT:
+        rx = width - char_size*len(txt)
+    if y_align == ALIGN_MID:
+        ry = int((height - bw*2 - char_size)/2)
+    elif y_align == ALIGN_BOTTOM:
+        ry = height - char_size
+    display.upscaled_text(x+rx,y+ry,txt,color,upscaling=upscaling)
 
-# Temperature view.
-def temperature_view(temp):
+# Main view where temp and humidity are shown.
+# If the temperatures time series 'ts' is given, a graph
+# of the history is displayed as well. 'color_step' represents
+# after how many data samples to change color, alternating between
+# two colors, so that different hours/minutes are marked in this way.
+def main_view(temp,humidity,ts,color_step):
     display.fill(display.color(0,0,0))
-    big_centered_text(str(temp)+"C",display.color(255,255,255))
+    upscaling = 2
+    big_centered_text(2,2,display.width-2,display.height-2,str(temp),
+            display.color(255,255,255),2,
+            x_align=ALIGN_LEFT,
+            y_align=ALIGN_TOP)
+    big_centered_text(2,2,display.width-2,display.height-2,str(humidity),
+            display.color(255,255,255),2,
+            x_align=ALIGN_RIGHT,
+            y_align=ALIGN_TOP)
+    big_centered_text(2,18,display.width-2,display.height-18,"temp",
+            display.color(50,50,50),1,
+            x_align=ALIGN_LEFT,
+            y_align=ALIGN_TOP)
+    big_centered_text(2,18,display.width-2,display.height-18,"igro",
+            display.color(50,50,50),1,
+            x_align=ALIGN_RIGHT,
+            y_align=ALIGN_TOP)
+    
+    if ts and len(ts):
+        # Graphs. Compute the length of the highest temperature bar.
+        bottom_margin = 10
+        maxlen = display.height - (16+8+5) # header text + padding.
+        maxlen -= bottom_margin # Space at the bottom for min/max/info.
 
-# Humidity view.
-def humidity_view(humidity):
-    display.fill(display.color(0,0,0))
-    big_centered_text(str(humidity)+"%",display.color(255,255,255))
+        maxtemp = max(ts)
+        mintemp = min(ts)
+        delta = maxtemp-mintemp
+        for i in range(len(ts)):
+            # 75% of space is the dynamic range, 25% if fixed.
+            thisdelta = ts[i]-mintemp
+            thislen = maxlen*0.25
+            if delta: thislen += thisdelta/delta*maxlen*0.75
+            color = graph_color1 if (i//color_step) & 1 == 0 else graph_color2
+            ybase = display.height-bottom_margin-1
+            display.vline(ybase,ybase-int(thislen),i,color)
 
-c64_screen(show_banner=True,type_text=["LOAD *,8,1","RUN"])
-view = 0 # Increments at every view change.
-while True:
-    d = dht.DHT22(Pin(16))
-    d.measure()
-    print(d.temperature(), d.humidity())
+        # Draw the footer with min/max/info
+        big_centered_text(0,display.height-8,display.width,display.height,"min:"+str(mintemp),display.color(0,0xcc,0x55),1,x_align=ALIGN_LEFT,y_align=ALIGN_TOP)
+        big_centered_text(0,display.height-8,display.width,display.height,"max:"+str(maxtemp),display.color(0x88,0,0),1,x_align=ALIGN_RIGHT,y_align=ALIGN_TOP)
 
-    # Display current view
-    num_views = 2
-    if view % num_views == 0: temperature_view(d.temperature())
-    elif view % num_views == 1: humidity_view(d.humidity())
-    view += 1 # Next time we will display the next view
+# Creates a unique fingerprint of the current readings, to update
+# the view only if sensor data changes. Our readings are so easy
+# that is more memory efficient to just contatenate the strings.
+def hash_sensor_data(*args):
+    return "_".join([str(x) for x in args])
 
-    time.sleep(10) # Time between view switch.
+def main():
+    global ts_h, ts_d
+    data_hash = None    # Hashing of last data rendered. As long as both
+                        # temperature and humidity are the same we don't
+                        # refresh them.
+    # Let's start the show.
+    c64_screen(show_banner=True,type_text=["LOAD *,8,1","RUN"])
+    loop_count = 1
+    while True:
+        loop_start = time.ticks_ms()
+        d = dht.DHT22(Pin(16))
+        d.measure()
 
-    # From time to time show again the loading screen.
-    if random.getrandbits(4) == 0:
-        c64_screen(show_banner=True,type_text=["LOAD *,8,1","RUN"])
+        # Print / store the data
+        cur_hash = hash_sensor_data(d.temperature(),d.humidity())
+        ts_h.append(d.temperature())
+        ts_h = ts_h[-display.width:]
+        if loop_count % spq == 0 and len(ts_h) >= spq:
+            # Every 15 minutes we populate the last days time series.
+            ts_d.append(sum(ts_h[-spq:])/spq)
+            ts_d = ts_d[-display.width:]
+        print("readings",d.temperature(), d.humidity())
+        print("ts_h",ts_h)
+        print("ts_d",ts_d)
+
+        # From time to time show again the loading screen.
+        if loop_count > 1 and random.getrandbits(5) == 0:
+            c64_screen(show_banner=True,type_text=["LOAD *,8,1","RUN"])
+            data_hash = None # Force refresh of view
+
+        # Display current view
+        if cur_hash != data_hash:
+            main_view(d.temperature(),d.humidity(),ts_h,60//sampling_period)
+            data_hash = cur_hash
+
+        # Wait 10 seconds from the last sensor reading.
+        while time.ticks_diff(time.ticks_ms(),loop_start) < sampling_period*1000:
+            time.sleep_ms(100)
+
+        loop_count += 1
+
+# Entry point.
+main()
