@@ -269,9 +269,9 @@ def main():
         # Display current view
         if cur_hash != data_hash:
             if daily_graph:
-                main_view("hourly",dht.temperature(),dht.humidity(),ts_h,graph_color1)
-            else:
                 main_view("daily",dht.temperature(),dht.humidity(),ts_d,graph_color2)
+            else:
+                main_view("hourly",dht.temperature(),dht.humidity(),ts_h,graph_color1)
             data_hash = cur_hash
             daily_graph = not daily_graph
 
