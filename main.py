@@ -5,7 +5,9 @@ import st7789_base, st7789_ext, dht
 ########################### GLOBAL STATE AND CONFIG ############################
 
 sampling_period = 10 # Read temperature/humidity every N seconds.
-                     # Better if multiple of 60.
+daily_sampling_period = 9 # Store a daily sample every M minutes. With
+                          # 9 minutes the 160 pixels of the display will
+                          # cover exactly 24 hours.
 # We take temp readings of the last hour in high resolution, and
 # historical data of the last couple of days with hourly resolution.
 # In both cases, we only take the latest 'display.width' samples as
@@ -13,7 +15,7 @@ sampling_period = 10 # Read temperature/humidity every N seconds.
 ts_h = []  # Temperatures sampled every 'sampling_period'. Few hours.
 ts_d = []  # Temperatures sampled every 15 min. A couple of days.
 sph = 3600//sampling_period # Samples per hour at sampling_period.
-spq = sph//4 # Samples per 15 minutes.
+spq = daily_sampling_period*60//sampling_period # Samples per daily_sampling_period minutes.
 
 # Display and backlight
 display = st7789_ext.ST7789(
@@ -61,6 +63,12 @@ bg_color = c64colors['blue']         # Screen background
 fg_color = c64colors['light_blue']         # Screen border
 graph_color1 = c64colors['violet'] # Temp graph 1
 graph_color2 = c64colors['orange'] # Temp graph 2
+
+# Finally make a list of images available
+bg_images = []
+for filename in os.listdir():
+    if filename[-3:] == '565': bg_images.append(filename)
+print("Found background images: ",bg_images)
 
 def show_palette():
     j = 0
@@ -130,7 +138,7 @@ ALIGN_LEFT = const(0)
 ALIGN_RIGHT = const(2)
 ALIGN_TOP = const(3)
 ALIGN_BOTTOM = const(4)
-def big_centered_text(x,y,width,height,txt,color,upscaling,*,x_align=ALIGN_MID,y_align=ALIGN_MID):
+def big_centered_text(x,y,width,height,txt,color,upscaling,*,x_align=ALIGN_MID,y_align=ALIGN_MID,shadow=None):
     char_size = upscaling*8
     rx = 0 # left as default
     ry = 0 # top as default
@@ -142,6 +150,10 @@ def big_centered_text(x,y,width,height,txt,color,upscaling,*,x_align=ALIGN_MID,y
         ry = int((height - char_size)/2)
     elif y_align == ALIGN_BOTTOM:
         ry = height - char_size
+    if shadow:
+        for sx in range(-1,2,2):
+            for sy in range(-1,2,2):
+                display.upscaled_text(x+rx-sx,y+ry+sy,txt,shadow,upscaling=upscaling)
     display.upscaled_text(x+rx,y+ry,txt,color,upscaling=upscaling)
 
 # Main view where temp and humidity are shown.
@@ -151,6 +163,7 @@ def big_centered_text(x,y,width,height,txt,color,upscaling,*,x_align=ALIGN_MID,y
 # two colors, so that different hours/minutes are marked in this way.
 def main_view(title,temp,humidity,ts,color):
     display.fill(c64colors['black'])
+    display.image(0,0,bg_images[random.getrandbits(8)%len(bg_images)])
     upscaling = 2
     big_centered_text(2,2,display.width-2,display.height-2,str(temp),
             c64colors['white'],2,
@@ -187,13 +200,16 @@ def main_view(title,temp,humidity,ts,color):
             display.vline(ybase,ybase-int(thislen),i,color)
 
         # Draw the footer with min/max/info
+        display.rect(0,display.height-10,display.width,10,
+            c64colors['black'],fill=True)
         big_centered_text(0,display.height-8,display.width,display.height,f"min:%.1f" % mintemp,c64colors['cyan'],1,x_align=ALIGN_LEFT,y_align=ALIGN_TOP)
         big_centered_text(0,display.height-8,display.width,display.height,f"max:%.1f" % maxtemp,c64colors['light_red'],1,x_align=ALIGN_RIGHT,y_align=ALIGN_TOP)
 
         # Draw the title of the graph
         big_centered_text(0,display.height//2,display.width,display.height//2,
                           title,c64colors['grey3'],1,
-                          x_align=ALIGN_MID,y_align=ALIGN_MID)
+                          x_align=ALIGN_MID,y_align=ALIGN_MID,
+                          shadow=display.color(5,5,5))
 
 # Persist hourly/daily time series on the device flash.
 def save_state():
@@ -235,6 +251,9 @@ def main():
     loop_count = 1
     load_state()        # Load past data
 
+    last_two_readings = [] # We average last two readings for the
+                           # hourly time series, so each sample represents
+                           # 10 seconds.
     while True:
         loop_start = time.ticks_ms()
 
@@ -248,11 +267,15 @@ def main():
 
         # Print / store the data
         cur_hash = hash_sensor_data(dht.temperature(),dht.humidity())
-        ts_h.append(dht.temperature())
-        ts_h = ts_h[-display.width:]
-        if loop_count % spq == 0 and len(ts_h) >= spq:
-            # Every 15 minutes we populate the last days time series.
-            ts_d.append(sum(ts_h[-spq:])/spq)
+        last_two_readings.append(dht.temperature())
+
+        if len(last_two_readings) == 2:
+            ts_h.append(sum(last_two_readings)/2)
+            ts_h = ts_h[-display.width:]
+            last_two_readings = [] # Start collecting two readings again.
+        if loop_count % spq == 0 and len(ts_h) >= spq//2:
+            # Every N minutes we populate the last days time series.
+            ts_d.append(sum(ts_h[-(spq//2):])/(spq//2))
             ts_d = ts_d[-display.width:]
         print("T, H, freemem:",dht.temperature(),dht.humidity(),gc.mem_free())
 
