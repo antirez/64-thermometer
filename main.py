@@ -163,8 +163,17 @@ def big_centered_text(x,y,width,height,txt,color,upscaling,*,x_align=ALIGN_MID,y
 # two colors, so that different hours/minutes are marked in this way.
 def main_view(title,temp,humidity,ts,color):
     display.fill(c64colors['black'])
-    display.image(0,0,bg_images[random.getrandbits(8)%len(bg_images)])
+    r = random.getrandbits(8) ^ (random.getrandbits(8)>>3)
+    display.image(0,0,bg_images[r%len(bg_images)])
     upscaling = 2
+    header_height = (16+8+5) # header text + padding
+
+    # Fade out the image where we are going to place our header
+    for y in range(0,header_height,2):
+        display.hline(0,display.width-1,y,c64colors['black'])
+    for x in range(0,display.width,2):
+        display.vline(0,header_height,x,c64colors['black'])
+
     big_centered_text(2,2,display.width-2,display.height-2,str(temp),
             c64colors['white'],2,
             x_align=ALIGN_LEFT,
@@ -186,7 +195,7 @@ def main_view(title,temp,humidity,ts,color):
         # Graph drawing.
         bottom_margin = 10
         ybase = display.height-bottom_margin-1 # y coordiante of bars start
-        maxlen = display.height - (16+8+5) # header text + padding.
+        maxlen = display.height - header_height
         maxlen -= bottom_margin # Space at the bottom for min/max/info.
 
         maxtemp = max(ts)
@@ -211,12 +220,14 @@ def main_view(title,temp,humidity,ts,color):
 
         # Fill the graph area with alternating black lines.
         for i in range(len(ts)):
-            if i % 3 != 0:
+            if i % 2 != 0:
                 display.vline(ybase,bar_heights[i]+1,i,c64colors['black'])
 
         # Draw a continuous line connecting the time series data points.
         for i in range(0,len(ts)-1):
             display.line(i,bar_heights[i],i+1,bar_heights[i+1],c64colors['white']);
+            display.line(i,bar_heights[i]+1,i+1,bar_heights[i+1]+1,c64colors['grey2']);
+            display.line(i,bar_heights[i]+2,i+1,bar_heights[i+1]+2,c64colors['grey1']);
 
         # Draw the footer with min/max/info
         big_centered_text(0,display.height-8,display.width,display.height,f"min:%.1f" % mintemp,c64colors['cyan'],1,x_align=ALIGN_LEFT,y_align=ALIGN_TOP)
