@@ -192,12 +192,25 @@ def main_view(title,temp,humidity,ts,color):
         maxtemp = max(ts)
         mintemp = min(ts)
         delta = maxtemp-mintemp
+        prevx,prevy = None,None
+
+        for i in range(len(ts)):
+            thisdelta = ts[i]-mintemp
+            thislen = maxlen*0.25
+            if delta: thislen += thisdelta/delta*maxlen*0.75
+            thisx,thisy = i,ybase-int(thislen)
+            if i % 3 != 0:
+                display.vline(ybase,thisy+1,i,c64colors['black'])
+
         for i in range(len(ts)):
             # 75% of space is the dynamic range, 25% if fixed.
             thisdelta = ts[i]-mintemp
             thislen = maxlen*0.25
             if delta: thislen += thisdelta/delta*maxlen*0.75
-            display.vline(ybase,ybase-int(thislen),i,color)
+            thisx,thisy = i,ybase-int(thislen)
+            if prevx != None:
+                display.line(prevx,prevy,thisx,thisy,c64colors['white']);
+            prevx,prevy = thisx,thisy
 
         # Draw the footer with min/max/info
         display.rect(0,display.height-10,display.width,10,
