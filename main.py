@@ -194,27 +194,31 @@ def main_view(title,temp,humidity,ts,color):
         delta = maxtemp-mintemp
         prevx,prevy = None,None
 
-        for i in range(len(ts)):
-            thisdelta = ts[i]-mintemp
-            thislen = maxlen*0.25
-            if delta: thislen += thisdelta/delta*maxlen*0.75
-            thisx,thisy = i,ybase-int(thislen)
-            if i % 3 != 0:
-                display.vline(ybase,thisy+1,i,c64colors['black'])
+        # Paint the footer are with black ASAP, it's nicer to see
+        # it obscured since the start.
+        display.rect(0,display.height-10,display.width,10,
+            c64colors['black'],fill=True)
 
+        bar_heights = bytearray(len(ts))
+        # Compute the height of each bar representing a single
+        # temperature data point.
         for i in range(len(ts)):
             # 75% of space is the dynamic range, 25% if fixed.
             thisdelta = ts[i]-mintemp
             thislen = maxlen*0.25
             if delta: thislen += thisdelta/delta*maxlen*0.75
-            thisx,thisy = i,ybase-int(thislen)
-            if prevx != None:
-                display.line(prevx,prevy,thisx,thisy,c64colors['white']);
-            prevx,prevy = thisx,thisy
+            bar_heights[i] = ybase-int(thislen)
+
+        # Fill the graph area with alternating black lines.
+        for i in range(len(ts)):
+            if i % 3 != 0:
+                display.vline(ybase,bar_heights[i]+1,i,c64colors['black'])
+
+        # Draw a continuous line connecting the time series data points.
+        for i in range(0,len(ts)-1):
+            display.line(i,bar_heights[i],i+1,bar_heights[i+1],c64colors['white']);
 
         # Draw the footer with min/max/info
-        display.rect(0,display.height-10,display.width,10,
-            c64colors['black'],fill=True)
         big_centered_text(0,display.height-8,display.width,display.height,f"min:%.1f" % mintemp,c64colors['cyan'],1,x_align=ALIGN_LEFT,y_align=ALIGN_TOP)
         big_centered_text(0,display.height-8,display.width,display.height,f"max:%.1f" % maxtemp,c64colors['light_red'],1,x_align=ALIGN_RIGHT,y_align=ALIGN_TOP)
 
