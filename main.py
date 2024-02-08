@@ -4,6 +4,9 @@ import st7789_base, st7789_ext, dht
 
 ################################ CONFIGURATION #################################
 
+save_history = True  # Persist time series on device flash.
+                     # Disable if you want to save yoru flash memory life.
+
 sampling_period = 15 # Read temperature/humidity every N seconds.
                      # Note that the hourly time series will get a sample
                      # after twice this period, and the sample will be the
@@ -237,14 +240,20 @@ def main_view(title,temp,humidity,ts,color):
             bar_heights[i] = ybase-int(thislen)
 
         # Fill the graph area with alternating black lines.
-        graph_style = 'solid'
+        graph_style = 'dithered'
         if graph_style == 'solid':
             for i in range(len(ts)):
                 display.vline(ybase,bar_heights[i]+1,i,display.color(10,10,10))
         elif graph_style == 'alternating':
             for i in range(len(ts)):
                 if i % 3 != 0:
-                    display.vline(ybase,bar_heights[i]+1,i,display.color(10,10,10))
+                    display.vline(ybase,bar_heights[i]+1,i,display.color(0,0,0))
+        elif graph_style == 'dithered':
+            for i in range(len(ts)):
+                display.vline(ybase,bar_heights[i]+1,i,display.color(10,10,10))
+                if i % 4 == 0:
+                    for y in range(bar_heights[i]+(i%3*2),ybase,4):
+                        display.pixel(i,y,display.color(30,30,30))
 
         # Draw a continuous line connecting the time series data points.
         for i in range(0,len(ts)-1):
@@ -356,7 +365,7 @@ def main():
             time.sleep_ms(100)
 
         loop_count += 1
-        if loop_count % 10 == 0: save_state()
+        if loop_count % 10 == 0 and save_history: save_state()
 
 # Entry point.
 main()
