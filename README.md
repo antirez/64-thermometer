@@ -5,6 +5,11 @@ that is also a trubite to the old 80s computing era: the ghaphics is
 reminiscent of the Commodore 64, and the backgrounds are extracted
 from actual games screenshots.
 
+[<img src="https://i.ytimg.com/vi/GHrPLEnpWjo/0.jpg" width="50%">](https://www.youtube.com/watch?v=GHrPLEnpWjo "C64 style thermometer demo")
+
+*Click the above image to see the video*
+
+
 The hardware has a total cost of ~5 euros. You will need:
 * A 160x128 display based on ST7789 / ST7735. I used [this one]()
 * A DHT22 temperature sensor. I used [this one]()
