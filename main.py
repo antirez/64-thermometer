@@ -2,9 +2,17 @@ import dht, machine, time, random
 from machine import Pin, SPI
 import st7789_base, st7789_ext, dht
 
-########################### GLOBAL STATE AND CONFIG ############################
+################################ CONFIGURATION #################################
 
-sampling_period = 10 # Read temperature/humidity every N seconds.
+sampling_period = 15 # Read temperature/humidity every N seconds.
+                     # Note that the hourly time series will get a sample
+                     # after twice this period, and the sample will be the
+                     # average of two readings. For instance if this is set
+                     # to 15 and the display width is 160 pixels, each pixel
+                     # will represent 30 seconds thus:
+                     #
+                     # 160*30sec / 60sec_in_a_minute = 80 minutes hourly graph.
+
 daily_sampling_period = 9 # Store a daily sample every M minutes. With
                           # 9 minutes the 160 pixels of the display will
                           # cover exactly 24 hours.
@@ -12,10 +20,13 @@ daily_sampling_period = 9 # Store a daily sample every M minutes. With
 # historical data of the last couple of days with hourly resolution.
 # In both cases, we only take the latest 'display.width' samples as
 # anyway this is max data we can should as one-pixel bars.
-ts_h = []  # Temperatures sampled every 'sampling_period'. Few hours.
-ts_d = []  # Temperatures sampled every 15 min. A couple of days.
 sph = 3600//sampling_period # Samples per hour at sampling_period.
 spq = daily_sampling_period*60//sampling_period # Samples per daily_sampling_period minutes.
+
+####################### INITIALIZE GLOBAL STATE AND HARDWARE ###################
+
+ts_h = []  # Temperatures sampled every 'sampling_period'. Few hours.
+ts_d = []  # Temperatures sampled every daily_sampling_period min.
 
 # Display and backlight
 display = st7789_ext.ST7789(
@@ -163,8 +174,11 @@ def big_centered_text(x,y,width,height,txt,color,upscaling,*,x_align=ALIGN_MID,y
 # two colors, so that different hours/minutes are marked in this way.
 def main_view(title,temp,humidity,ts,color):
     display.fill(c64colors['black'])
+
+    # Show the background image.
     r = random.getrandbits(8) ^ (random.getrandbits(8)>>3)
     display.image(0,0,bg_images[r%len(bg_images)])
+
     upscaling = 2
     header_height = (16+8+5) # header text + padding
 
@@ -190,6 +204,10 @@ def main_view(title,temp,humidity,ts,color):
             c64colors['grey2'],1,
             x_align=ALIGN_RIGHT,
             y_align=ALIGN_TOP)
+
+    # Keep the C64 graphics in its stunning beauty for a bit, then
+    # we will draw the graph over part of it.
+    time.sleep(2)
     
     if ts and len(ts):
         # Graph drawing.
@@ -207,7 +225,7 @@ def main_view(title,temp,humidity,ts,color):
         # it obscured since the start.
         display.rect(0,display.height-10,display.width,10,
             c64colors['black'],fill=True)
-
+       
         bar_heights = bytearray(len(ts))
         # Compute the height of each bar representing a single
         # temperature data point.
@@ -219,22 +237,29 @@ def main_view(title,temp,humidity,ts,color):
             bar_heights[i] = ybase-int(thislen)
 
         # Fill the graph area with alternating black lines.
-        for i in range(len(ts)):
-            if i % 2 != 0:
-                display.vline(ybase,bar_heights[i]+1,i,c64colors['black'])
+        graph_style = 'solid'
+        if graph_style == 'solid':
+            for i in range(len(ts)):
+                display.vline(ybase,bar_heights[i]+1,i,display.color(10,10,10))
+        elif graph_style == 'alternating':
+            for i in range(len(ts)):
+                if i % 3 != 0:
+                    display.vline(ybase,bar_heights[i]+1,i,display.color(10,10,10))
 
         # Draw a continuous line connecting the time series data points.
         for i in range(0,len(ts)-1):
+            display.line(i,bar_heights[i]-1,i+1,bar_heights[i+1]-1,c64colors['black']);
             display.line(i,bar_heights[i],i+1,bar_heights[i+1],c64colors['white']);
-            display.line(i,bar_heights[i]+1,i+1,bar_heights[i+1]+1,c64colors['grey2']);
-            display.line(i,bar_heights[i]+2,i+1,bar_heights[i+1]+2,c64colors['grey1']);
+            display.line(i,bar_heights[i]+1,i+1,bar_heights[i+1]+1,c64colors['grey3']);
+            display.line(i,bar_heights[i]+2,i+1,bar_heights[i+1]+2,c64colors['grey2']);
 
         # Draw the footer with min/max/info
         big_centered_text(0,display.height-8,display.width,display.height,f"min:%.1f" % mintemp,c64colors['cyan'],1,x_align=ALIGN_LEFT,y_align=ALIGN_TOP)
         big_centered_text(0,display.height-8,display.width,display.height,f"max:%.1f" % maxtemp,c64colors['light_red'],1,x_align=ALIGN_RIGHT,y_align=ALIGN_TOP)
 
         # Draw the title of the graph
-        big_centered_text(0,display.height//2,display.width,display.height//2,
+        big_centered_text(0,int(display.height*0.66),
+                          display.width,int(display.height*0.33),
                           title,c64colors['grey3'],1,
                           x_align=ALIGN_MID,y_align=ALIGN_MID,
                           shadow=display.color(5,5,5))
@@ -322,7 +347,7 @@ def main():
             if daily_graph:
                 main_view("daily",dht.temperature(),dht.humidity(),ts_d,graph_color2)
             else:
-                main_view("hourly",dht.temperature(),dht.humidity(),ts_h,graph_color1)
+                main_view(f"{int(display.width*sampling_period*2/60)} minutes",dht.temperature(),dht.humidity(),ts_h,graph_color1)
             data_hash = cur_hash
             daily_graph = not daily_graph
 
