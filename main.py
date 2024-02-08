@@ -81,7 +81,9 @@ graph_color2 = c64colors['orange'] # Temp graph 2
 # Finally make a list of images available
 bg_images = []
 for filename in os.listdir():
-    if filename[-3:] == '565': bg_images.append(filename)
+    if filename[-3:] == '565':
+        bg_images.append(filename)
+        # display.image(0,0,filename)
 print("Found background images: ",bg_images)
 
 def show_palette():
