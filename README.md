@@ -11,9 +11,9 @@ from actual games screenshots.
 
 
 The hardware has a total cost of ~5 euros. You will need:
-* A 160x128 display based on ST7789 / ST7735. I used [this one]()
-* A DHT22 temperature sensor. I used [this one]()
-* A cheap ESP8266 with all the required pins accessible. I used [this one]()
+* A 160x128 display based on ST7789 / ST7735. I used [this one](https://it.aliexpress.com/item/1005005621843286.html)
+* A DHT22 temperature sensor. You will find one everywhere.
+* A cheap ESP8266 with all the required pins accessible. I used [one almost identical to this one](https://it.aliexpress.com/item/1005005977505151.html). Any ESP8266 with all the pins we need available will work.
 
 All the code is written in MicroPython.
 
