@@ -190,7 +190,7 @@ class ST7789_base:
 
     # Drawing raw pixels is a fundamental operation so we go low
     # level avoiding function calls. This and other optimizations
-    # made drawing 10k pixels with an ESP2866 from 420ms to 100ms.
+    # made drawing 10k pixels with an ESP8266 from 420ms to 100ms.
     def pixel(self,x,y,color):
         if x < 0 or x >= self.width or y < 0 or y >= self.height: return
         self.dc.off()
