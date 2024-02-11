@@ -83,7 +83,7 @@ Connect the DHT22 in this way:
     Pin 3 -> not connected
     Pin 4 -> GND -> Any GND on the board
 
-Finally plug your ESP2866 to the USB port.
+Finally plug your ESP8266 to the USB port.
 
 ## Transfer the MicroPython code and background images to the device
 
@@ -113,7 +113,7 @@ Use the `png565` utility like that:
 
     ./png565 myfile.png myfile.565
 
-Then transfer your image to the ESP2866 device:
+Then transfer your image to the ESP8266 device:
 
     mpremote cp myfile.565 :
 
