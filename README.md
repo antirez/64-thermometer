@@ -63,7 +63,7 @@ Connect the display following these instructions:
     SDA/MOSI -> GPIO13 (sometimes called "D7" on the board)
     A0/DC -> GPIO4 (sometimes called "D2" on the board)
     RESET -> GPIO2 (sometimes called "D4" on the board)
-    CS -> GPIO10 (sometimes called "SDD3" on the board)
+    CS -> GPIO15 (sometimes called "D8" on the board)
     GND -> Any GND on the board
     VC -> Any V3.3 on the board
 

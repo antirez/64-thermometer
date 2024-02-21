@@ -1,6 +1,8 @@
-import dht, machine, time, random
+import machine, time, random, gc
 from machine import Pin, SPI
-import st7789_base, st7789_ext, dht
+import st7789_base
+import st7789_ext
+import dht
 
 ################################ CONFIGURATION #################################
 
@@ -37,7 +39,7 @@ display = st7789_ext.ST7789(
     160, 128,
     reset=machine.Pin(2, machine.Pin.OUT),
     dc=machine.Pin(4, machine.Pin.OUT),
-    cs=machine.Pin(10, machine.Pin.OUT),
+    cs=machine.Pin(15, machine.Pin.OUT),
     inversion = False,
 )
 
@@ -275,11 +277,23 @@ def main_view(title,temp,humidity,ts,color):
                           x_align=ALIGN_MID,y_align=ALIGN_MID,
                           shadow=display.color(5,5,5))
 
+# This is an helper function for save_state(). To save the array
+# of values on disk, we can't just use repr(), because it will use
+# an amount of memory proportional to the number and size of items.
+# So we instead iterate each element and write them one by one
+# to file "f".
+def save_array(f,array_name,array):
+    f.write(array_name+" = [")
+    for ele in array:
+        f.write(repr(ele))
+        f.write(",")
+    f.write("]\n")
+
 # Persist hourly/daily time series on the device flash.
 def save_state():
     f = open("history.txt","wb")
-    f.write("ts_h = %s\n" % repr(ts_h))
-    f.write("ts_d = %s\n" % repr(ts_d))
+    save_array(f,"ts_h",ts_h)
+    save_array(f,"ts_d",ts_d)
     f.close()
 
 # Load state at startup. So when the device powers up again the graphs
@@ -367,6 +381,7 @@ def main():
             time.sleep_ms(100)
 
         loop_count += 1
+        gc.collect()
         if loop_count % 10 == 0 and save_history: save_state()
 
 # Entry point.
